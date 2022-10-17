@@ -1,0 +1,28 @@
+
+body {
+    background-color: #222;
+    margin: 0;
+    padding: 0;
+}
+
+a {
+    display: flex;
+    color: gray;
+    justify-content: center;
+}
+
+a:visited {
+    color: gray;
+}
+
+a:hover {
+    color: yellow;
+}
+
+#header {
+    display: flex;
+    justify-content: center;
+    color: white;
+    font-size: 4rem;
+}
+
