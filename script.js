@@ -1,13 +1,13 @@
-// Auteur: Roel Kemp
+// Author: Roeland L.C. Kemp
 
 const NATURALS = "CDEFGAB";
-const SEMITONES = "C D EF G A B";
+const SEMITONES = "A BC D EF G ";
 const MAJOR_STEPS = [2, 2, 1, 2, 2, 2, 1];
 
 // "A minor" for testing
 let scale = new Scale(new Tone('A'),6);
 
-function Tone(natural = 'C', flatSharp = 0, interval = 1, octave = 0) {
+function Tone(natural = 'C', flatSharp = 0, interval = 1, octave = 4) {
     natural = natural.toUpperCase();
     this.natural = (natural >= 'A' && natural <= 'G') ? natural : 'C';
     this.flatSharp = parseInt(flatSharp);
@@ -21,6 +21,12 @@ function Tone(natural = 'C', flatSharp = 0, interval = 1, octave = 0) {
         }
         return "" + natural + accidentals;
     }
+}
+
+function semitonesBetween(tone1, tone2) {
+    let index1 = SEMITONES.indexOf(tone1.natural) + tone1.flatSharp + (tone1.octave * 12);
+    let index2 = SEMITONES.indexOf(tone2.natural) + tone2.flatSharp + (tone2.octave * 12);
+    return Math.abs(index1 - index2);
 }
 
 function Scale(root = new Tone('C'), mode = 1) {
@@ -90,36 +96,42 @@ function Scale(root = new Tone('C'), mode = 1) {
     }
 }
 
-function Pattern(sequence = [1, 2, 3, 1, 6, 5, 4, 3], cadence = [1, 2, 3, 4, 5, 6, 7, 8]) {
+function Note(tone, duration) {
+    this.tone = tone;
+    this.duration = duration;
+}
+
+function Pattern(sequence = [1,2,3,4], cadence = [1,2,3,4,5,6,7,8]) {
     this.sequence = sequence;
     this.cadence = cadence;
 
     let pattern = [];
     for (let i = 0; i < cadence.length; i++) {
         for (let j = 0; j < sequence.length; j++) {
-            pattern.push(sequence[j] + cadence[i] - 1);
+            pattern.push(getScaleTone(sequence[j] + (cadence[i] - 1)));
         }
     }
     return pattern;
 }
 
-function getScaleTone (interval) {
+function getScaleTone(interval) {    
+    if (interval == 0 || interval == -1) {
+        return scale.tones[0];
+    }
+
+    let tone = scale.tones[((interval % scale.tones.length) - 1 + scale.tones.length) % scale.tones.length];
     if (interval > scale.tones.length) {
         let octsUp = (interval - (interval % scale.tones.length)) / scale.tones.length;
-        let tone = scale.tones[(interval % scale.tones.length) - 1];
         return new Tone(tone.natural, tone.flatSharp, tone.interval, tone.octave + octsUp);
     }
     if (interval < -1) {
         interval++;
         let octsDown = (interval - (interval % scale.tones.length)) / scale.tones.length;
-        let tone = scale.tones[(scale.tones.length - Math.abs(interval % scale.tones.length)) % scale.tones.length];
         return new Tone(tone.natural, tone.flatSharp, tone.interval, tone.octave + octsDown);
-    }
-    if (interval == 0 || interval == -1) {
-        return scale.tones[0];
     }
     return scale.tones[interval - 1];
 }
+
 
 // Unused.
 function getReorderedSemitones(startTone) {
@@ -131,9 +143,50 @@ function getReorderedSemitones(startTone) {
     return SEMITONES.substring(index % SEMITONES.length) + SEMITONES.substring(0, index % SEMITONES.length);
 }
 
-// Unused.
-function semitonesBetween(tone1, tone2) {
-    let index1 = SEMITONES.indexOf(tone1.natural) + tone1.flatSharp;
-    let index2 = SEMITONES.indexOf(tone2.natural) + tone2.flatSharp;
-    return (Math.max(index1, index2) - Math.min(index1, index2)) % SEMITONES.length;
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+function calcMIDINumber(tone) {
+    return 21 + semitonesBetween(new Tone ('A', 0, 0, 0), tone);
+}
+
+function calcFreq(tone) {
+    return Math.pow(2, (semitonesBetween(new Tone ('A', 0, 0, 0), tone) - 48) / 12) * 440;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+let bpm = 240;
+
+let audioCtx = null;
+let osc = null;
+
+let isStarted = false;
+
+const length = bpm / 60 / 32;
+const eps = 0.01;
+
+let noteSequence = new Pattern();
+
+function getAudioCtx() {
+    if (!audioCtx) {
+        audioCtx = new AudioContext();
+        osc = audioCtx.createOscillator();
+        osc.connect(audioCtx.destination);
+        osc.type = 'triangle';
+    }
+    return audioCtx;
+}
+
+function playSequence() {
+    getAudioCtx();
+    osc.start(0);
+    let time = audioCtx.currentTime + eps;
+    noteSequence.forEach(tone => {
+        let freq = calcFreq(tone);
+        osc.frequency.setTargetAtTime(0, time - eps, 0.001);
+        osc.frequency.setTargetAtTime(freq, time, 0.001);
+        time += length;
+    });
+    osc.frequency.setTargetAtTime(0, time - eps, 0.001);
 }
