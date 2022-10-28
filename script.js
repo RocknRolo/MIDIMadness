@@ -101,7 +101,9 @@ function Note(tone, duration) {
     this.duration = duration;
 }
 
-function Pattern(sequence = [1,2,3,4], cadence = [1,2,3,4,5,6,7,8]) {
+let endOnRoot = true;
+
+function Pattern(sequence = [1,2,3,4], cadence = [1,-2,-3,-4,-5,-6,-7,-8]) {
     this.sequence = sequence;
     this.cadence = cadence;
 
@@ -111,6 +113,11 @@ function Pattern(sequence = [1,2,3,4], cadence = [1,2,3,4,5,6,7,8]) {
             pattern.push(getScaleTone(sequence[j] + (cadence[i] - 1)));
         }
     }
+    if (endOnRoot) {
+        let rootTone = getScaleTone(1);
+        let lastOct = getScaleTone(sequence[sequence.length - 1] + (cadence[cadence.length - 1] - 1)).octave;
+        pattern.push(new Tone(rootTone.natural, rootTone.flatSharp, 0, lastOct));
+    }
     return pattern;
 }
 
@@ -119,15 +126,16 @@ function getScaleTone(interval) {
         return scale.tones[0];
     }
 
-    let tone = scale.tones[((interval % scale.tones.length) - 1 + scale.tones.length) % scale.tones.length];
     if (interval > scale.tones.length) {
+        let tone = scale.tones[((interval % scale.tones.length) - 1 + scale.tones.length) % scale.tones.length];
         let octsUp = (interval - (interval % scale.tones.length)) / scale.tones.length;
         return new Tone(tone.natural, tone.flatSharp, tone.interval, tone.octave + octsUp);
     }
     if (interval < -1) {
-        interval++;
+        interval += 2;
+        let tone = scale.tones[((interval % scale.tones.length) - 1 + scale.tones.length) % scale.tones.length];
         let octsDown = (interval - (interval % scale.tones.length)) / scale.tones.length;
-        return new Tone(tone.natural, tone.flatSharp, tone.interval, tone.octave + octsDown);
+        return new Tone(tone.natural, tone.flatSharp, tone.interval, tone.octave - octsDown);
     }
     return scale.tones[interval - 1];
 }
@@ -190,3 +198,6 @@ function playSequence() {
     });
     osc.frequency.setTargetAtTime(0, time - eps, 0.001);
 }
+
+// TODO:
+// - Negative values in cadence don't work properly.
